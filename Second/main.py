@@ -3,12 +3,12 @@ import numpy as np
 import sys
 
 TEST_PATH = r"C:\Users\dorvic\PycharmProjects\psiml-2019\Second\Test"
-#TEST_NUMBERS = [3,4,5,6,7,8,9,10,11,12]
-TEST_NUMBERS = [4]
+TEST_NUMBERS = [3,4,5,6,7,8,9,10,11,12]
+#TEST_NUMBERS = [4]
 ANSWERS_EXT = ".txt"
 CORRECT_ANS_ID = 0
 WISE_PER_ANS_ID = 1
-EPSILON = 0.0001
+EPSILON = 0.01
 EPSILON_THRESHOLD = 0.00000001
 TASK_THRESHOLD = 70
 
@@ -181,7 +181,7 @@ def compute_eer(dic_test_name: dict):
             #print("THREASHOLD: {2:.4f} TPR:{0:.5f} FPR{1:.5f} DIF: {3:.4f}".format(tpr, fpr_a, threshold, diff))
             if abs(diff) < EPSILON:
                 #print("EER{}".format(fpr))
-                print("{}".format(fpr), end="")
+                print("{}".format(fpr_a[diff_idx]), end="")
                 sol_found = True
                 break
             # Breaking point
@@ -200,6 +200,76 @@ def compute_eer(dic_test_name: dict):
             break
 
         threshold_a = np.linspace(threshold_a[start_diff_idx], threshold_a[start_diff_idx+1], threshold_nums)
+
+
+def compute_eer_b(dic_test_name: dict):
+    threshold = 0.0
+    threshold_begin = 0.0
+    threshold_end = 100.0
+    correct_answer_positive, correct_answer_negative = \
+        count_positive_and_negative_answers(dic_test_name)
+
+    epsilon_threshold = 10
+    threshold_nums = 201
+    threshold = threshold_begin
+
+    sol_found = False
+    threshold_a = np.linspace(threshold_begin, threshold_end, threshold_nums)
+    while True:
+        diff_a = [sys.float_info.max] * threshold_nums
+        fpr_a = [sys.float_info.max] * threshold_nums
+        for threshold_idx, threshold in enumerate(threshold_a):
+            true_positive = count_true_positive(dic_test_name, threshold)
+            false_positive = count_false_positive(dic_test_name, threshold)
+            tpr = None
+            fpr = None
+            # 1 - tpr goes up, since number of yess will drop down for sure
+            # It always starts from 0, because all positive answers will be predicted true,
+            # and complement of that
+            # fpr goes down
+            # It always starts from 1, because all negative answers will be predicted true
+            if correct_answer_positive != 0:
+                tpr = true_positive / correct_answer_positive
+            if correct_answer_negative != 0:
+                fpr = false_positive / correct_answer_negative
+
+            if (fpr is not None) and (tpr is not None):
+                diff_a[threshold_idx] = fpr - (1 - tpr)
+                fpr_a[threshold_idx] = fpr
+        # Check whether the difference is so small to fit.
+        start_diff_idx = -1
+        min_sol = sys.float_info.max
+        min_fpr = -1
+        for diff_idx, diff in enumerate(diff_a):
+            #print("THREASHOLD: {2:.4f} TPR:{0:.5f} FPR{1:.5f} DIF: {3:.4f}".format(tpr, fpr_a, threshold, diff))
+            if abs(diff) < min_sol:
+                min_fpr = fpr_a[diff_idx]
+                min_sol = abs(diff)
+                print("THRE{} OTHER{}".format( threshold_a[diff_idx], diff))
+
+                #print("EER{}".format(fpr))
+                #print("{}".format(fpr), end="")
+                #sol_found = True
+                #break
+            # Breaking point
+            #if diff < 0.0:
+                #start_diff_idx = diff_idx - 1
+                #break
+
+        print(min_fpr, end="")
+        print("min_sol{}".format(min_sol))
+        break
+        #if sol_found:
+        #    break
+
+        #epsilon_threshold = threshold_a[threshold_nums - 1] - threshold_a[0]
+        #print("EPS_THR{}".format(epsilon_threshold))
+        #if epsilon_threshold < EPSILON_THRESHOLD:
+            #print("EER{}".format(fpr_a[0]))
+        #    print("{}".format(fpr_a[0]), end="")
+        #    break
+
+        #threshold_a = np.linspace(threshold_a[start_diff_idx], threshold_a[start_diff_idx+1], threshold_nums)
 
 
 # Returns a dictionary where the key is the test id and a value is an array of ca/wa
@@ -234,13 +304,7 @@ def list_all_files_start_with_in_dir(dir_name_str: str, start_str_a):
     compute_eer(dic_test_name)
 
 
-if __name__ == "__main__":
-    #answers_folder = input()
-    ANS_STR_A = ["", ""]
-    ANS_STR_A[WISE_PER_ANS_ID] = "wpa"
-    ANS_STR_A[CORRECT_ANS_ID] = "ca"
-
-    #Initialize tests cases.
+def run_tests():
     answers_folder_a = []
     for test_number in TEST_NUMBERS:
         answers_folder_a.append(TEST_PATH + str(test_number))
@@ -250,4 +314,15 @@ if __name__ == "__main__":
         print("Test path:" + answers_folder)
         list_all_files_start_with_in_dir(answers_folder, ANS_STR_A)
         print("")
+
+
+if __name__ == "__main__":
+    ANS_STR_A = ["", ""]
+    ANS_STR_A[WISE_PER_ANS_ID] = "wpa"
+    ANS_STR_A[CORRECT_ANS_ID] = "ca"
+
+    #run_tests()
+    answers_folder = input()
+    list_all_files_start_with_in_dir(answers_folder, ANS_STR_A)
+
 
