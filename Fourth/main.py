@@ -142,13 +142,14 @@ def find_similar(patch_image, map_compressed):
     #print("Patch_FUN",patch_fun)
     mc_height, mc_width = map_compressed.shape
     # Create list of so
-    for row in range(0, mc_height, 10):
-        for col in range(0, mc_width, 10):
+    for row in range(mc_height):
+        for col in range(mc_width):
             if abs(patch_fun - map_compressed[row][col]) < min_diff:
                 min_diff = abs(patch_fun - map_compressed[row][col])
                 left_x = col
                 left_y = row
-
+    #TODO: Add sorted method
+    #TODO: Modify to find closest elemtn 
 
     '''
     for row_start in range(0, map_height - patch_height):
@@ -215,7 +216,7 @@ def submision_test():
 
 if __name__ == "__main__":
 
-    #run_tests()
-    submision_test()
+    run_tests()
+    #submision_test()
 
 
