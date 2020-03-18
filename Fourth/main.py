@@ -7,8 +7,8 @@ import time
 
 NUM_COLORS = 3
 TEST_PATH = str(pathlib.Path(__file__).parent.absolute()) + "\\"
-#TEST_NUMBERS = range(0,8) + range(10,16)
-TEST_NUMBERS = [9]
+#TEST_NUMBERS = range(6)
+TEST_NUMBERS = [5]
 X_ID = 0
 Y_ID = 1
 HEIGHT_ID = 2
@@ -76,7 +76,7 @@ def get_sum_rows(map_image, patch_height, patch_width):
         for col in range(0, patch_width):
             pixel = map_image[row][col]
             for color in range(NUM_COLORS):
-                map_sum_compressed_row[row][0] += int(pixel[color])
+                map_sum_compressed_row[row][0] += int(pixel[color])* int(pixel[color])
 
     for row in range(map_height):
         for col in range(patch_width, map_width):
@@ -84,7 +84,8 @@ def get_sum_rows(map_image, patch_height, patch_width):
             pixel_left = map_image[row][col - patch_width]
             map_sum_compressed_row[row][col - patch_width + 1] = map_sum_compressed_row[row][col - patch_width]
             for color in range(NUM_COLORS):
-                map_sum_compressed_row[row][col - patch_width + 1] += int(pixel_right[color]) - int(pixel_left[color])
+                map_sum_compressed_row[row][col - patch_width + 1] += int(pixel_right[color]) * int(pixel_right[color]) - \
+                                                                      int(pixel_left[color]) * int(pixel_left[color])
 
     return map_sum_compressed_row
 
@@ -97,7 +98,7 @@ def get_sum_cols(map_image, patch_height, patch_width):
         for row in range(patch_height):
             pixel = map_image[row][col]
             for color in range(NUM_COLORS):
-                map_sum_compressed_col[0][col] += int(pixel[color])
+                map_sum_compressed_col[0][col] += int(pixel[color]) * int(pixel[color])
 
     for col in range(map_width):
         for row in range(patch_height, map_height):
@@ -105,7 +106,8 @@ def get_sum_cols(map_image, patch_height, patch_width):
             pixel_down = map_image[row][col]
             map_sum_compressed_col[row - patch_height + 1][col] = map_sum_compressed_col[row - patch_height][col]
             for color in range(NUM_COLORS):
-                 map_sum_compressed_col[row - patch_height + 1][col] += int(pixel_down[color]) - int(pixel_up[color])
+                 map_sum_compressed_col[row - patch_height + 1][col] += int(pixel_down[color]) * int(pixel_down[color]) - \
+                                                                        int(pixel_up[color]) * int(pixel_up[color])
 
     return map_sum_compressed_col
 
@@ -149,14 +151,6 @@ def map_compress_image(map_image, patch_height, patch_width):
     for row in range(map_compressed.shape[0]):
         for col in range(map_compressed.shape[1]):
             assumed = np.sum(map_image[row:row + patch_height, col:col + patch_width, :])
-            '''
-            if (row == 78) and (col == 174):
-                print("Assumed", assumed)
-            if (row == 225) and (col == 420):
-                print("Assumed2", assumed)
-            if assumed != map_compressed[row][col]:
-                print("Problem complete sum badly computed:{}{}".format(row, col))
-            '''
     return map_compressed
 
 
@@ -167,7 +161,7 @@ def get_patch_fun(patch_image):
         for col in range(patch_width):
             pixel = patch_image[row][col]
             for color in range(NUM_COLORS):
-                patch_fun += pixel[color]
+                patch_fun += int(pixel[color]) * int(pixel[color])
     return patch_fun
 
 
@@ -226,9 +220,43 @@ def find_similar(patch_image, map_fun_coordinate):
                 left_x = col
                 left_y = row
     '''
+    the_same = True if closest_value == patch_fun else False
+    return left_x, left_y, the_same
 
-    return left_x, left_y
 
+def blur_patch(patch_image, blurred_patch_image):
+
+    patch_height, patch_width, _ = blurred_patch_image.shape
+    window_height = 3
+    window_width = 3
+    edge_height = window_height // 2
+    edge_width = window_width // 2
+    indexes_array = [(0, edge_height, 0, patch_width),
+                   (patch_height - edge_height, patch_height, 0, patch_width),
+                   (0, patch_height, 0 , edge_width),
+                   (0, patch_height, patch_width - edge_width, patch_width )]
+    for indexes in indexes_array:
+        for row in range(indexes[0], indexes[1]):
+            for col in range(indexes[2], indexes[3]):
+                for color in range(NUM_COLORS):
+                    blurred_patch_image[row][col][color] = patch_image[row][col][color]
+
+    median_a = np.zeros((window_height, window_width))
+    for row in range(edge_height, patch_height - edge_height):
+        for col in range(edge_width, patch_width - edge_width):
+            for color in range(NUM_COLORS):
+                sum = 0
+                # TODO: Compute median filter
+
+                for window_row in range(0, window_height):
+                    for window_col in range(0, window_width):
+                        median_a[window_row][window_col] = patch_image[row + window_row - edge_height][col + window_col - edge_width][color]
+                #assumed_c = np.median(patch_image[row-edge_height:row+edge_height+1, col - edge_width : col + edge_width+1, color])
+                #if (assumed_c != sum):
+                #    print("ROW, {} COL {} color {}, assumed_c {} sum {}".format(row, col, color, assumed_c, sum))
+                blurred_patch_image[row][col][color] = np.median(median_a)
+
+    #print("EHsd")
 
 def run_test(map_path: str, patches_path_a: List[str]):
     patch_image_a = [np.array([1])] * patches_path_a.__len__()
@@ -239,11 +267,24 @@ def run_test(map_path: str, patches_path_a: List[str]):
 
     map_height,map_width, _ = map_image.shape
     patch_height, patch_width, _ = patch_image_a[0].shape
+
     map_compressed = convert_image_to_sum(map_image, patch_height, patch_width)
     map_fun_coordinate = sort_image_compressed(map_compressed)
 
-    for patch_image in patch_image_a:
-        x, y = find_similar(patch_image, map_fun_coordinate)
+    blurred_patch_image = np.zeros(patch_image_a[0].shape, dtype=np.uint8)
+    blurred_map_image = np.zeros(map_image.shape, dtype=np.uint8)
+
+    for patch_image_idx, patch_image in enumerate(patch_image_a):
+        x, y, the_same = find_similar(patch_image, map_fun_coordinate)
+        if not the_same:
+            print("PIC:", patches_path_a[patch_image_idx])
+            img1 = Image.fromarray(patch_image, 'RGB')
+            img1.show()
+            blur_patch(patch_image, blurred_patch_image)
+            img2 = Image.fromarray(blurred_patch_image, 'RGB')
+            img2.show()
+            img2.save("test.png")
+            x, y, the_same = find_similar(patch_image, map_fun_coordinate)
         print("{},{}".format(x, y))
 
 
@@ -264,7 +305,7 @@ def run_tests():
         print("--- %s seconds ---" % (time.time() - start_time))
 
 
-def submision_test():
+def submission_test():
     map_path = input()
     num_patches = int(input())
     boring = input()
@@ -273,9 +314,10 @@ def submision_test():
         patch_path_a[patch_idx] = input()
     run_test(map_path, patch_path_a)
 
+
 if __name__ == "__main__":
 
     run_tests()
-    #submision_test()
+    #submission_test()
 
 
