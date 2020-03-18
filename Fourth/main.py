@@ -1,6 +1,5 @@
 import os
 import numpy as np
-import sys
 from typing import List
 from PIL import Image
 import pathlib
@@ -9,17 +8,64 @@ import time
 NUM_COLORS = 3
 TEST_PATH = str(pathlib.Path(__file__).parent.absolute()) + "\\"
 #TEST_NUMBERS = range(0,8) + range(10,16)
-TEST_NUMBERS = [0]
+TEST_NUMBERS = [9]
 X_ID = 0
 Y_ID = 1
 HEIGHT_ID = 2
 WEIGHT_ID = 3
+FUN_ID = 0
+ROW_ID = 1
+COL_ID = 2
+
 
 
 def get_image(path: str):
     file = Image.open(path)
     image = np.array(file)
     return image
+
+def gray_scale_pixel(pixel):
+    return 0.2989 * pixel[0] + 0.5870 * pixel[1] + 0.1140 * pixel[2]
+
+
+def rgb_to_hsl(pixel):
+    red_f = pixel[0] / 255
+    green_f = pixel[1] / 255
+    blue_f = pixel[2] / 255
+
+    max_color = max(red_f, max(green_f, blue_f))
+    min_color = min(red_f, min(green_f, blue_f))
+
+    if (red_f == green_f) and (green_f == blue_f):
+        hue = 0
+        saturation = 0
+        lightness = red_f
+    else:
+        lightness = (min_color + max_color) / 2
+        diff_color = max_color - min_color
+        if (lightness < 0.5):
+            saturation = diff_color / (max_color + min_color)
+        else:
+            saturation = diff_color / (2.0 - max_color - min_color)
+        if red_f == max_color:
+            hue = (green_f - blue_f) / (max_color - min_color)
+        elif green_f == max_color:
+            hue = 2.0 + (blue_f - red_f) / (max_color - min_color)
+        else:
+            hue = 4.0 + (red_f - green_f) / (max_color - min_color)
+        hue /= 6
+        if hue < 0:
+            hue += 1
+
+
+    hue = int(hue * 360)
+    saturation = int(saturation * 255)
+    lightness = int(lightness * 255)
+    return hue, saturation, lightness
+
+
+def saturatepicture(image):
+    pass
 
 
 def get_sum_rows(map_image, patch_height, patch_width):
@@ -132,42 +178,53 @@ def convert_image_to_sum(map_image, patch_height, patch_width):
     return map_compressed
 
 
-def find_similar(patch_image, map_compressed):
+def sort_image_compressed(map_compressed):
+    mc_height, mc_width = map_compressed.shape
+    map_fun_coordinate = []
+    for row in range(mc_height):
+        for col in range(mc_width):
+            map_fun_coordinate.append((map_compressed[row][col], row, col))
+
+    map_fun_coordinate = sorted(map_fun_coordinate, key=lambda tup: tup[0])
+    return map_fun_coordinate
+
+
+
+def find_closest_patch(map_fun_coordinate, patch_fun):
+    start_idx = 0
+    end_idx = map_fun_coordinate.__len__()
+    mid_tuple = (0, -1, -1)
+    while (end_idx - start_idx) > 1:
+        mid_idx = (start_idx + end_idx) // 2
+        mid_tuple = map_fun_coordinate[mid_idx]
+        if (mid_tuple[FUN_ID] == patch_fun):
+            return mid_tuple
+        if (mid_tuple[FUN_ID] < patch_fun):
+            start_idx = mid_idx
+        else:
+            end_idx = mid_idx
+
+    if map_fun_coordinate[start_idx][FUN_ID] < map_fun_coordinate[end_idx][FUN_ID]:
+        return map_fun_coordinate[start_idx]
+    else:
+        return map_fun_coordinate[end_idx]
+
+
+def find_similar(patch_image, map_fun_coordinate):
     patch_height, patch_width, _ = patch_image.shape
-    min_diff = sys.maxsize
-    left_x = -1
-    left_y = -1
 
     patch_fun = get_patch_fun(patch_image)
-    #print("Patch_FUN",patch_fun)
-    mc_height, mc_width = map_compressed.shape
-    # Create list of so
+    closest_value, row, col = find_closest_patch(map_fun_coordinate, patch_fun)
+    #print("Values: ", closest_value, " ",  patch_fun)
+    left_x = col
+    left_y = row
+    '''
     for row in range(mc_height):
         for col in range(mc_width):
             if abs(patch_fun - map_compressed[row][col]) < min_diff:
                 min_diff = abs(patch_fun - map_compressed[row][col])
                 left_x = col
                 left_y = row
-    #TODO: Add sorted method
-    #TODO: Modify to find closest elemtn 
-
-    '''
-    for row_start in range(0, map_height - patch_height):
-        for col_start in range(0, map_width - patch_width):
-            cur_diff = 0
-            for row_patch, row_map in enumerate(range(row_start, row_start + patch_height)):
-                for col_patch, col_map in enumerate(range(col_start, col_start + patch_width)):
-                    map_pixel = map_image[row_map, col_map]
-                    patch_pixel = patch_image[row_patch, col_patch]
-                    for color_id in range(0, NUM_COLORS):
-                        cur_diff += abs(int(map_pixel[color_id]) - int(patch_pixel[color_id]))
-                if row_map == 0:
-                    print(row_map)
-
-            if (cur_diff < max_diff):
-                max_diff = cur_diff
-                left_x = col_map
-                left_y = row_map
     '''
 
     return left_x, left_y
@@ -183,8 +240,10 @@ def run_test(map_path: str, patches_path_a: List[str]):
     map_height,map_width, _ = map_image.shape
     patch_height, patch_width, _ = patch_image_a[0].shape
     map_compressed = convert_image_to_sum(map_image, patch_height, patch_width)
+    map_fun_coordinate = sort_image_compressed(map_compressed)
+
     for patch_image in patch_image_a:
-        x, y = find_similar(patch_image, map_compressed)
+        x, y = find_similar(patch_image, map_fun_coordinate)
         print("{},{}".format(x, y))
 
 
